@@ -13,10 +13,35 @@ let posts         = [];
 let composerImage = null;
 let openMenuId    = null;
 
+/* ── Global error boundary ── */
+window.onerror = function(msg, src, line, col, err) {
+var splash = document.getElementById(‘splash’);
+if (splash) {
+splash.innerHTML = ‘<div style="text-align:center;padding:40px;color:#fff"><div style="font-size:48px;font-weight:700;font-family:Georgia,serif;margin-bottom:16px">H</div><div style="color:#f4212e;font-size:14px;margin-bottom:8px">Failed to load</div><div style="color:#71767b;font-size:12px;max-width:280px;margin:0 auto">’ + msg + ‘</div><button onclick="localStorage.clear();location.reload()" style="margin-top:20px;background:#1d9bf0;color:#fff;border:none;border-radius:99px;padding:10px 24px;cursor:pointer;font-size:14px">Reset & Reload</button></div>’;
+}
+return false;
+};
+
+/* ── Splash ── */
+function hideSplash() {
+var splash = document.getElementById(‘splash’);
+if (splash) {
+splash.classList.add(‘hide’);
+setTimeout(function() { if (splash.parentNode) splash.parentNode.removeChild(splash); }, 350);
+}
+}
+
 /* ── Bootstrap ── */
-document.addEventListener(‘DOMContentLoaded’, () => {
+document.addEventListener(‘DOMContentLoaded’, function() {
+try {
 profile = loadProfile();
 posts   = loadPosts();
+} catch(e) {
+profile = null;
+posts = [];
+}
+
+hideSplash();
 
 if (!profile) {
 showOnboarding();
@@ -25,7 +50,7 @@ bootApp();
 }
 
 // Close menus on outside click
-document.addEventListener(‘click’, e => {
+document.addEventListener(‘click’, function(e) {
 if (openMenuId && !e.target.closest(’.post-menu-wrapper’)) {
 closeAllMenus();
 }
@@ -44,13 +69,13 @@ navigator.serviceWorker.register(’./service-worker.js’)
 STORAGE
 ══════════════════════════════════════════════ */
 function loadProfile() {
-try { return JSON.parse(localStorage.getItem(DB_KEY_PROFILE)); } catch { return null; }
+try { return JSON.parse(localStorage.getItem(DB_KEY_PROFILE)); } catch(e) { return null; }
 }
 function saveProfile(p) {
 localStorage.setItem(DB_KEY_PROFILE, JSON.stringify(p));
 }
 function loadPosts() {
-try { return JSON.parse(localStorage.getItem(DB_KEY_POSTS)) || []; } catch { return []; }
+try { return JSON.parse(localStorage.getItem(DB_KEY_POSTS)) || []; } catch(e) { return []; }
 }
 function savePosts() {
 localStorage.setItem(DB_KEY_POSTS, JSON.stringify(posts));
