@@ -41,13 +41,15 @@ function getBlobUrl(blob) {
 // ──────────────────── Image Rendering ────────────────────
 function renderGridItems(images, container) {
   container.innerHTML = '';
+  // Keep viewer image list in sync with what's visible
+  viewerImageList = images;
   images.forEach((img, i) => {
-    const item = createGridItem(img, i);
+    const item = createGridItem(img, i, images);
     container.appendChild(item);
   });
 }
 
-function createGridItem(img, index) {
+function createGridItem(img, index, imageList) {
   const item = document.createElement('div');
   item.className = 'grid-item';
   item.style.animationDelay = Math.min(index * 0.04, 0.6) + 's';
@@ -89,27 +91,52 @@ function createGridItem(img, index) {
   item.appendChild(favBtn);
 
   observer.observe(item);
-  item.addEventListener('click', () => openViewer(img));
+  // Pass the imageList so viewer can navigate through all visible images
+  item.addEventListener('click', () => openViewer(img, imageList || viewerImageList));
 
   return item;
 }
 
 // ──────────────────── Fullscreen Viewer ────────────────────
 let viewerCurrentImage = null;
+let viewerCurrentIndex = 0;
+let viewerImageList = []; // the full list of images currently shown in grid
 let viewerScale = 1;
 let viewerPinchDist = null;
-let viewerDragStart = null;
 let viewerTranslate = { x: 0, y: 0 };
 let viewerHeaderTimeout;
 
-function openViewer(img) {
-  viewerCurrentImage = img;
+// Called from explore page to keep viewer in sync with current grid images
+function setViewerImageList(list) {
+  viewerImageList = list;
+}
+
+function openViewer(img, imageList) {
+  if (imageList) viewerImageList = imageList;
+  const idx = viewerImageList.findIndex(i => i.id === img.id);
+  viewerCurrentIndex = idx >= 0 ? idx : 0;
+  viewerCurrentImage = viewerImageList[viewerCurrentIndex] || img;
+
+  _loadViewerImage(viewerCurrentImage, true);
+
   const viewer = document.getElementById('image-viewer');
+  viewer.classList.add('open');
+  document.body.style.overflow = 'hidden';
+  showViewerHeader();
+}
+
+function _loadViewerImage(img, animate) {
+  viewerCurrentImage = img;
   const viewerImg = document.getElementById('viewer-img');
   const favBtn = document.getElementById('viewer-fav-btn');
+  const counter = document.getElementById('viewer-counter');
 
-  viewerImg.src = getBlobUrl(img.blob);
-  viewerImg.className = 'viewer-zoom-in';
+  if (viewerImg) {
+    if (animate) viewerImg.className = 'viewer-zoom-in';
+    else viewerImg.className = '';
+    viewerImg.src = getBlobUrl(img.blob);
+  }
+
   viewerScale = 1;
   viewerTranslate = { x: 0, y: 0 };
   applyViewerTransform();
@@ -119,8 +146,71 @@ function openViewer(img) {
     favBtn.innerHTML = `<svg width="18" height="18" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2" fill="${img.favorite ? 'currentColor' : 'none'}"><path d="M20.84 4.61a5.5 5.5 0 0 0-7.78 0L12 5.67l-1.06-1.06a5.5 5.5 0 0 0-7.78 7.78l1.06 1.06L12 21.23l7.78-7.78 1.06-1.06a5.5 5.5 0 0 0 0-7.78z"/></svg>`;
   }
 
-  viewer.classList.add('open');
-  document.body.style.overflow = 'hidden';
+  if (counter && viewerImageList.length > 0) {
+    counter.textContent = `${viewerCurrentIndex + 1} / ${viewerImageList.length}`;
+  }
+
+  _updateNavButtons();
+  _updateDots();
+}
+
+function _updateNavButtons() {
+  const prevBtn = document.getElementById('viewer-prev');
+  const nextBtn = document.getElementById('viewer-next');
+  if (!prevBtn || !nextBtn) return;
+
+  if (viewerCurrentIndex <= 0) {
+    prevBtn.classList.add('disabled');
+  } else {
+    prevBtn.classList.remove('disabled');
+  }
+
+  if (viewerCurrentIndex >= viewerImageList.length - 1) {
+    nextBtn.classList.add('disabled');
+  } else {
+    nextBtn.classList.remove('disabled');
+  }
+}
+
+function _updateDots() {
+  const dotsEl = document.getElementById('viewer-dots');
+  if (!dotsEl) return;
+  const total = viewerImageList.length;
+  // Only show dots if ≤ 20 images, otherwise skip (performance)
+  if (total > 20 || total <= 1) { dotsEl.innerHTML = ''; return; }
+  dotsEl.innerHTML = '';
+  for (let i = 0; i < total; i++) {
+    const dot = document.createElement('div');
+    dot.className = 'viewer-dot' + (i === viewerCurrentIndex ? ' active' : '');
+    dotsEl.appendChild(dot);
+  }
+}
+
+function navigateViewer(direction) {
+  // direction: -1 = prev, +1 = next
+  const newIdx = viewerCurrentIndex + direction;
+  if (newIdx < 0 || newIdx >= viewerImageList.length) return;
+  viewerCurrentIndex = newIdx;
+
+  const viewerImg = document.getElementById('viewer-img');
+  if (viewerImg) {
+    // Slide animation
+    viewerImg.style.transition = 'transform 0.2s ease, opacity 0.15s ease';
+    viewerImg.style.transform = `translateX(${direction > 0 ? '-60px' : '60px'}) scale(0.92)`;
+    viewerImg.style.opacity = '0';
+    setTimeout(() => {
+      viewerImg.style.transition = 'none';
+      viewerImg.style.transform = `translateX(${direction > 0 ? '60px' : '-60px'}) scale(0.92)`;
+      viewerImg.style.opacity = '0';
+      _loadViewerImage(viewerImageList[viewerCurrentIndex], false);
+      requestAnimationFrame(() => {
+        viewerImg.style.transition = 'transform 0.25s cubic-bezier(0.34,1.2,0.64,1), opacity 0.2s ease';
+        viewerImg.style.transform = 'translateX(0) scale(1)';
+        viewerImg.style.opacity = '1';
+        setTimeout(() => { viewerImg.style.transition = ''; }, 280);
+      });
+    }, 160);
+  }
 
   showViewerHeader();
 }
@@ -142,27 +232,39 @@ function applyViewerTransform() {
 function showViewerHeader() {
   const header = document.querySelector('.viewer-header');
   const footer = document.querySelector('.viewer-footer');
+  const navBtns = document.querySelectorAll('.viewer-nav-btn');
   if (header) header.classList.remove('hidden');
   if (footer) footer.classList.remove('hidden');
+  navBtns.forEach(b => b.style.opacity = '');
   clearTimeout(viewerHeaderTimeout);
   viewerHeaderTimeout = setTimeout(() => {
     if (header) header.classList.add('hidden');
     if (footer) footer.classList.add('hidden');
-  }, 3000);
+  }, 3500);
 }
 
 function initViewer() {
   const viewer = document.getElementById('image-viewer');
+  if (!viewer) return;
   const imgWrap = viewer.querySelector('.viewer-img-wrap');
   const viewerImg = document.getElementById('viewer-img');
   const closeBtn = document.getElementById('viewer-close');
   const favBtn = document.getElementById('viewer-fav-btn');
   const downloadBtn = document.getElementById('viewer-download-btn');
+  const prevBtn = document.getElementById('viewer-prev');
+  const nextBtn = document.getElementById('viewer-next');
 
   closeBtn.addEventListener('click', closeViewer);
 
-  // Tap to show/hide header
-  imgWrap.addEventListener('click', () => showViewerHeader());
+  // Gallery prev/next buttons
+  if (prevBtn) prevBtn.addEventListener('click', (e) => { e.stopPropagation(); navigateViewer(-1); });
+  if (nextBtn) nextBtn.addEventListener('click', (e) => { e.stopPropagation(); navigateViewer(+1); });
+
+  // Tap image area (not on nav buttons) to show/hide header
+  imgWrap.addEventListener('click', (e) => {
+    if (e.target.closest('.viewer-nav-btn')) return;
+    showViewerHeader();
+  });
 
   // Favorite
   if (favBtn) {
@@ -170,9 +272,11 @@ function initViewer() {
       if (!viewerCurrentImage) return;
       const isFav = await HitgramDB.toggleFavorite(viewerCurrentImage.id);
       viewerCurrentImage.favorite = isFav;
+      // Also update in list
+      const listImg = viewerImageList.find(i => i.id === viewerCurrentImage.id);
+      if (listImg) listImg.favorite = isFav;
       favBtn.className = 'viewer-action-btn' + (isFav ? ' faved' : '');
       favBtn.innerHTML = `<svg width="18" height="18" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2" fill="${isFav ? 'currentColor' : 'none'}"><path d="M20.84 4.61a5.5 5.5 0 0 0-7.78 0L12 5.67l-1.06-1.06a5.5 5.5 0 0 0-7.78 7.78l1.06 1.06L12 21.23l7.78-7.78 1.06-1.06a5.5 5.5 0 0 0 0-7.78z"/></svg>`;
-      // Update grid item if visible
       const gridItem = document.querySelector(`.grid-item[data-id="${viewerCurrentImage.id}"] .grid-fav-btn`);
       if (gridItem) {
         gridItem.className = 'grid-fav-btn' + (isFav ? ' faved' : '');
@@ -195,31 +299,42 @@ function initViewer() {
     });
   }
 
-  // Keyboard close
+  // Keyboard navigation
   document.addEventListener('keydown', (e) => {
+    if (!viewer.classList.contains('open')) return;
     if (e.key === 'Escape') closeViewer();
+    if (e.key === 'ArrowLeft') navigateViewer(-1);
+    if (e.key === 'ArrowRight') navigateViewer(+1);
   });
 
-  // Touch gestures
+  // ── Touch gestures ──
   let touchStartY = 0;
   let touchStartX = 0;
-  let isSwiping = false;
+  let touchStartTime = 0;
+  let isVerticalSwipe = false;
+  let isHorizontalSwipe = false;
+  let swipeCommitted = false;
 
   imgWrap.addEventListener('touchstart', (e) => {
     if (e.touches.length === 1) {
       touchStartY = e.touches[0].clientY;
       touchStartX = e.touches[0].clientX;
-      isSwiping = false;
+      touchStartTime = Date.now();
+      isVerticalSwipe = false;
+      isHorizontalSwipe = false;
+      swipeCommitted = false;
       viewerPinchDist = null;
       viewerImg.style.transition = 'none';
     } else if (e.touches.length === 2) {
       viewerPinchDist = getTouchDist(e.touches);
-      isSwiping = false;
+      isVerticalSwipe = false;
+      isHorizontalSwipe = false;
       viewerImg.style.transition = 'none';
     }
   }, { passive: true });
 
   imgWrap.addEventListener('touchmove', (e) => {
+    // Pinch zoom
     if (e.touches.length === 2) {
       e.preventDefault();
       const dist = getTouchDist(e.touches);
@@ -231,43 +346,91 @@ function initViewer() {
       }
       return;
     }
-    if (e.touches.length === 1 && viewerScale <= 1) {
-      const dy = e.touches[0].clientY - touchStartY;
-      const dx = e.touches[0].clientX - touchStartX;
-      if (Math.abs(dy) > Math.abs(dx) && dy > 0) {
-        isSwiping = true;
-        const progress = Math.min(dy / 200, 1);
-        viewer.style.opacity = 1 - progress * 0.6;
-        viewer.style.transform = `translateY(${dy * 0.4}px)`;
+
+    if (e.touches.length !== 1) return;
+    const dy = e.touches[0].clientY - touchStartY;
+    const dx = e.touches[0].clientX - touchStartX;
+
+    // Commit gesture direction once
+    if (!swipeCommitted && (Math.abs(dx) > 8 || Math.abs(dy) > 8)) {
+      swipeCommitted = true;
+      isVerticalSwipe = Math.abs(dy) > Math.abs(dx);
+      isHorizontalSwipe = !isVerticalSwipe;
+    }
+
+    // Vertical swipe down to close (only when not zoomed)
+    if (isVerticalSwipe && viewerScale <= 1) {
+      if (dy > 0) {
+        e.preventDefault();
+        const progress = Math.min(dy / 220, 1);
+        viewer.style.opacity = 1 - progress * 0.65;
+        viewer.style.transform = `translateY(${dy * 0.45}px)`;
       }
+      return;
+    }
+
+    // Horizontal swipe for gallery navigation (only when not zoomed)
+    if (isHorizontalSwipe && viewerScale <= 1) {
+      e.preventDefault();
+      // Live drag preview
+      const maxDrag = 120;
+      const clampedDx = Math.max(-maxDrag, Math.min(maxDrag, dx));
+      viewerImg.style.transform = `translateX(${clampedDx}px) scale(${1 - Math.abs(clampedDx) / 800})`;
+      return;
     }
   }, { passive: false });
 
   imgWrap.addEventListener('touchend', (e) => {
     viewerPinchDist = null;
     viewerImg.style.transition = '';
-    if (isSwiping) {
-      const dy = e.changedTouches[0].clientY - touchStartY;
+
+    if (!swipeCommitted) {
+      // It was a tap
+      const elapsed = Date.now() - touchStartTime;
+      if (elapsed < 250) {
+        const now = Date.now();
+        if (now - (imgWrap._lastTap || 0) < 350) {
+          // Double tap: toggle zoom
+          if (viewerScale > 1) {
+            viewerScale = 1;
+            viewerTranslate = { x: 0, y: 0 };
+          } else {
+            viewerScale = 2.5;
+          }
+          applyViewerTransform();
+        } else {
+          showViewerHeader();
+        }
+        imgWrap._lastTap = now;
+      }
+      return;
+    }
+
+    const dy = e.changedTouches[0].clientY - touchStartY;
+    const dx = e.changedTouches[0].clientX - touchStartX;
+
+    if (isVerticalSwipe) {
+      viewer.style.opacity = '';
+      viewer.style.transform = '';
       if (dy > 100) {
         closeViewer();
       }
-      viewer.style.opacity = '';
-      viewer.style.transform = '';
-      isSwiping = false;
-    }
-    // Double tap to zoom
-    if (e.changedTouches.length === 1) {
-      const now = Date.now();
-      if (now - (imgWrap._lastTap || 0) < 300) {
-        if (viewerScale > 1) {
-          viewerScale = 1;
-          viewerTranslate = { x: 0, y: 0 };
-        } else {
-          viewerScale = 2.5;
-        }
-        applyViewerTransform();
+    } else if (isHorizontalSwipe && viewerScale <= 1) {
+      // Horizontal swipe threshold: 60px or fast flick
+      const elapsed = Date.now() - touchStartTime;
+      const velocity = Math.abs(dx) / elapsed;
+      const shouldNav = Math.abs(dx) > 60 || velocity > 0.4;
+
+      if (shouldNav) {
+        viewerImg.style.transform = '';
+        if (dx < 0) navigateViewer(+1); // swipe left → next
+        else navigateViewer(-1);        // swipe right → prev
+      } else {
+        // Snap back
+        viewerImg.style.transition = 'transform 0.25s ease';
+        viewerImg.style.transform = 'translateX(0) scale(1)';
+        setTimeout(() => { viewerImg.style.transition = ''; viewerImg.style.transform = ''; }, 260);
       }
-      imgWrap._lastTap = now;
     }
   }, { passive: true });
 }
@@ -396,4 +559,5 @@ function initInstallBanner() {
   }
 }
 
-window.HitgramApp = { showToast, getBlobUrl, renderGridItems, createGridItem, initViewer, initUploadModal, initInstallBanner, closeViewer, openViewer };
+window.HitgramApp = { showToast, getBlobUrl, renderGridItems, createGridItem, initViewer, initUploadModal, initInstallBanner, closeViewer, openViewer, setViewerImageList, navigateViewer };
+
