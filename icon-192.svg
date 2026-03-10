@@ -1,0 +1,41 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 192 192" width="192" height="192">
+  <defs>
+    <linearGradient id="bgGrad" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" style="stop-color:#1a0533"/>
+      <stop offset="40%" style="stop-color:#5c1a8a"/>
+      <stop offset="75%" style="stop-color:#c2185b"/>
+      <stop offset="100%" style="stop-color:#ff7043"/>
+    </linearGradient>
+    <linearGradient id="shineGrad" x1="0%" y1="0%" x2="0%" y2="100%">
+      <stop offset="0%" style="stop-color:#ffffff;stop-opacity:0.18"/>
+      <stop offset="100%" style="stop-color:#ffffff;stop-opacity:0"/>
+    </linearGradient>
+    <linearGradient id="lensGrad" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" style="stop-color:#ff8a80"/>
+      <stop offset="50%" style="stop-color:#ff2d55"/>
+      <stop offset="100%" style="stop-color:#d500f9"/>
+    </linearGradient>
+    <radialGradient id="glowGrad" cx="50%" cy="50%" r="50%">
+      <stop offset="0%" style="stop-color:#ff2d55;stop-opacity:0.5"/>
+      <stop offset="100%" style="stop-color:#ff2d55;stop-opacity:0"/>
+    </radialGradient>
+    <filter id="glow"><feGaussianBlur stdDeviation="3" result="blur"/><feMerge><feMergeNode in="blur"/><feMergeNode in="SourceGraphic"/></feMerge></filter>
+    <filter id="softShadow"><feDropShadow dx="0" dy="4" stdDeviation="6" flood-color="#000000" flood-opacity="0.4"/></filter>
+    <clipPath id="roundedClip"><rect width="192" height="192" rx="42"/></clipPath>
+  </defs>
+  <rect width="192" height="192" rx="42" fill="url(#bgGrad)"/>
+  <rect width="192" height="96" rx="42" fill="url(#shineGrad)" clip-path="url(#roundedClip)"/>
+  <ellipse cx="96" cy="100" rx="38" ry="38" fill="url(#glowGrad)" opacity="0.6"/>
+  <rect x="38" y="46" width="22" height="100" rx="7" fill="white" opacity="0.96" filter="url(#softShadow)"/>
+  <rect x="132" y="46" width="22" height="100" rx="7" fill="white" opacity="0.96" filter="url(#softShadow)"/>
+  <rect x="38" y="80" width="116" height="24" rx="7" fill="white" opacity="0.96" filter="url(#softShadow)"/>
+  <circle cx="96" cy="92" r="22" fill="url(#lensGrad)" filter="url(#glow)"/>
+  <circle cx="96" cy="92" r="15" fill="#0f0f11" opacity="0.85"/>
+  <circle cx="96" cy="92" r="9" fill="url(#lensGrad)" opacity="0.9"/>
+  <circle cx="96" cy="92" r="4" fill="white" opacity="0.95"/>
+  <circle cx="104" cy="84" r="3.5" fill="white" opacity="0.75"/>
+  <circle cx="102" cy="86" r="1.5" fill="white" opacity="0.5"/>
+  <circle cx="74" cy="92" r="2" fill="white" opacity="0.3"/>
+  <circle cx="118" cy="92" r="2" fill="white" opacity="0.3"/>
+  <circle cx="96" cy="70" r="2" fill="white" opacity="0.3"/>
+</svg>
